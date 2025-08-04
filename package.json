@@ -1,0 +1,24 @@
+{
+  "name": "report-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@xmldom/xmldom": "^0.9.8",
+    "chartjs-node-canvas": "^5.0.0",
+    "docx": "^9.5.1",
+    "docxtemplater": "^3.65.2",
+    "docxtemplater-image-module-free": "^1.1.1",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "pizzip": "^3.2.0"
+  },
+  "description": ""
+}
