@@ -246,6 +246,184 @@ const tableStyle = {
 // Crear la tabla
 docx.createTable(tableData, tableStyle);
 
+// 4) Salto de página (como Ctrl+Enter)
+docx.putPageBreak();
+
+// 5) Encabezado "ANÁLISIS" centrado y en negrita
+const p8 = docx.createP({
+  align: 'center',
+  spacing: { before: 200, after: 100 }
+});
+p8.addText('ANÁLISIS', {
+  bold: true,
+  font_face: 'Microsoft YaHei UI',
+  font_size: 15,
+  color: '002060'
+});
+
+// 6) Texto de descripción con tamaño 12, justificado
+const p9 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p9.addText(
+  'PM10 (µg/m³)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p10 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p10.addText(
+  'PM2.5 (µg/m³)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p11 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p11.addText(
+  'SO₂ (PPB)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p12 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p12.addText(
+  'NO₂ (PPB)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p13 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p13.addText(
+  'O3 (PPB)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p14 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p14.addText(
+  'CO (PPB)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p15 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p15.addText('Velocidad del viento (m/s)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p16 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p16.addText('Dirección del viento (º)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p17 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p17.addText('Precipitación (mm)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p18 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p18.addText('Presión atmosférica (mmHg)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p19 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p19.addText('Temperatura (°C)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
+const p20 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p20.addText('Humedad (%)',
+  {
+    bold: true,
+    font_face: 'Microsoft YaHei UI',
+    font_size: 13,
+    color: '002060'
+  }
+);
+
 // 8) Generar archivo
 const out = fs.createWriteStream('proyecto.docx');
 out.on('error', err => console.error(err));
