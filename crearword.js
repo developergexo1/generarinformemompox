@@ -141,6 +141,53 @@ p6.addText('Temperatura (°C)', { font_face: 'Microsoft YaHei UI', font_size: 12
 p6.addLineBreak();
 p6.addText('Humedad (%)', { font_face: 'Microsoft YaHei UI', font_size: 12, color: '002060' });
 
+// 9) Sección “Estadísticas” con saltos suaves (Shift+Enter)
+const p7 = docx.createP({
+  align: 'left',
+  spacing: { line: 240, before: 200 }
+});
+
+p7.addText('Estadísticas', {
+  bold: true,
+  font_face: 'Microsoft YaHei UI',
+  font_size: 13,
+  color: '002060'
+});
+
+p7.addLineBreak();
+p7.addText('Media: Media de los valores en el análisis', {
+  font_face: 'Microsoft YaHei UI',
+  font_size: 12,
+  color: '002060'
+});
+
+p7.addLineBreak();
+p7.addText('Max: Valor máximo horario', {
+  font_face: 'Microsoft YaHei UI',
+  font_size: 12,
+  color: '002060'
+});
+
+p7.addLineBreak();
+p7.addText('Min: Valor mínimo horario', {
+  font_face: 'Microsoft YaHei UI',
+  font_size: 12,
+  color: '002060'
+});
+
+p7.addLineBreak();
+p7.addText('Fecha Max: Fecha cuando se reportó el valor máximo horario', {
+  font_face: 'Microsoft YaHei UI',
+  font_size: 12,
+  color: '002060'
+});
+
+p7.addLineBreak();
+p7.addText('Fecha Min: Fecha cuando se reportó el valor mínimo horario', {
+  font_face: 'Microsoft YaHei UI',
+  font_size: 12,
+  color: '002060'
+});
 
 // 8) Generar archivo
 const out = fs.createWriteStream('proyecto.docx');
