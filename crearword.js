@@ -189,6 +189,63 @@ p7.addText('Fecha Min: Fecha cuando se reportó el valor mínimo horario', {
   color: '002060'
 });
 
+// 10) Página nueva y tabla "Estadísticas por sensor"
+docx.putPageBreak();
+
+// Cabeceras y estilos
+const headerFill = 'FFFFFF';   // azul
+const headerText = '002060';   // blanco
+const col1 = 7000;             // ancho 1ra col (Sensor)
+const colN = 1800;             // ancho columnas numéricas
+
+const headerRow = [
+  { val: 'Sensor',    opts: { b:true, color: headerText, shd:{ fill: headerFill }, align:'center', vAlign:'center', fontFamily:'Microsoft YaHei UI', sz:'18', cellColWidth: col1 } },
+  { val: 'Media',     opts: { b:true, color: headerText, shd:{ fill: headerFill }, align:'center', vAlign:'center', fontFamily:'Microsoft YaHei UI', sz:'18', cellColWidth: colN } },
+  { val: 'Max',       opts: { b:true, color: headerText, shd:{ fill: headerFill }, align:'center', vAlign:'center', fontFamily:'Microsoft YaHei UI', sz:'18', cellColWidth: colN } },
+  { val: 'Min',       opts: { b:true, color: headerText, shd:{ fill: headerFill }, align:'center', vAlign:'center', fontFamily:'Microsoft YaHei UI', sz:'18', cellColWidth: colN } },
+  { val: 'Fecha Max', opts: { b:true, color: headerText, shd:{ fill: headerFill }, align:'center', vAlign:'center', fontFamily:'Microsoft YaHei UI', sz:'18', cellColWidth: colN } },
+  { val: 'Fecha Min', opts: { b:true, color: headerText, shd:{ fill: headerFill }, align:'center', vAlign:'center', fontFamily:'Microsoft YaHei UI', sz:'18', cellColWidth: colN } },
+];
+
+const sensores = [
+  'PM₁₀ (µg/m³)',
+  'PM₂.₅ (µg/m³)',
+  'SO₂ (PPB)',
+  'NO₂ (PPB)',
+  'O₃ (PPB)',
+  'CO (PPB)',
+  'Velocidad del viento (m/s)',
+  'Dirección del viento (º)',
+  'Precipitación (mm)',
+  'Presión atmosférica (mmHg)',
+  'Temperatura (°C)',
+  'Humedad (%)'
+];
+
+// Construir filas (valores vacíos por ahora)
+const rows = sensores.map(nombre => ([
+  { val: nombre, opts: { b:true, fontFamily:'Microsoft YaHei UI', sz:'18', color:'002060', cellColWidth: col1 } },
+  { val: '-',     opts: { b:true, align:'center', fontFamily:'Microsoft YaHei UI', sz:'18', color:'002060', cellColWidth: colN } },
+  { val: '-',     opts: { b:true, align:'center', fontFamily:'Microsoft YaHei UI', sz:'18', color:'002060', cellColWidth: colN } },
+  { val: '-',     opts: { b:true, align:'center', fontFamily:'Microsoft YaHei UI', sz:'18', color:'002060', cellColWidth: colN } },
+  { val: '-',     opts: { b:true, align:'center', fontFamily:'Microsoft YaHei UI', sz:'18', color:'002060', cellColWidth: colN } },
+  { val: '-',     opts: { b:true, align:'center', fontFamily:'Microsoft YaHei UI', sz:'18', color:'002060', cellColWidth: colN } },
+]));
+
+const tableData = [headerRow, ...rows];
+
+const tableStyle = {
+  tableColWidth: 1200,                 // default (usamos cellColWidth por celda)
+  tableSize: 18,
+  tableColor: '002060',                // color de bordes
+  tableAlign: 'center',
+  tableFontFamily: 'Microsoft YaHei UI',
+  borders: true
+};
+
+// Crear la tabla
+docx.createTable(tableData, tableStyle);
+
 // 8) Generar archivo
 const out = fs.createWriteStream('proyecto.docx');
 out.on('error', err => console.error(err));
