@@ -10,6 +10,46 @@ const p1 = docx.createP({
   align: 'justify',
   spacing: { line: 240 }
 });
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
+p1.addLineBreak(); // Salto de línea
 p1.addText('Proyecto: ', {
   bold: true,
   font_face: 'Microsoft YaHei UI',
@@ -423,6 +463,127 @@ p20.addText('Humedad (%)',
     color: '002060'
   }
 );
+
+// 4) Salto de página (como Ctrl+Enter)
+docx.putPageBreak();
+
+// 5) Encabezado "CONCLUSIONES" centrado y en negrita
+const p21 = docx.createP({
+  align: 'center',
+  spacing: { before: 200, after: 100, before: 0 }
+});
+p21.addText('CONCLUSIONES', {
+  bold: true,
+  font_face: 'Microsoft YaHei UI',
+  font_size: 15,
+  color: '002060'
+});
+
+const p22 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240, after: 0, before: 0 }
+});
+p22.addText(
+  '	Durante el período de estudio comprendido entre fecha de inicio  y  fecha de finalización, se evaluaron las concentraciones de contaminantes atmosféricos y las condiciones meteorológicas registradas en la estación ubicada en el municipio de Mompox.',
+  {
+    font_face: 'Microsoft YaHei UI',
+    font_size: 12,
+    color: '002060'
+  }
+);
+
+
+const p23 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240, after: 0, before: 0 }
+});
+p23.addText(
+  'En cuanto a los contaminantes, las concentraciones de PM₁₀ oscilaron entre X,XX  µg/m³, registrado el fecha , y  X,XX µg/m³, registrado el fecha , con un promedio de X,XX  µg/m³.',
+  {
+    font_face: 'Microsoft YaHei UI',
+    font_size: 12,
+    color: '002060'
+  }
+);
+
+const p24 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240, after: 0, before: 0 }
+});
+p24.addText(
+  'Para PM₂.₅, los valores fluctuaron entre X,XX  µg/m³ el fecha y  X,XX  µg/m³ el fecha , con una media de X,XX  µg/m³.',
+  {
+    font_face: 'Microsoft YaHei UI',
+    font_size: 12,
+    color: '002060'
+  }
+);
+
+const p25 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240, after: 0, before: 0 }
+});
+p25.addText(
+  'El dióxido de azufre (SO₂) presentó concentraciones entre X,XX  ppb el  fecha  y  X,XX  ppb el  fecha , con un promedio de  X,XX  ppb.',
+  {
+    font_face: 'Microsoft YaHei UI',
+    font_size: 12,
+    color: '002060'
+  }
+);
+
+const p26 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240, after: 0, before: 0 }
+});
+p26.addText(
+  'En cuanto al dióxido de nitrógeno (NO₂), se registraron valores entre X,XX  ppb el  fecha  y  X,XX  ppb el  fecha , con una media de  X,XX  ppb.',
+  {
+    font_face: 'Microsoft YaHei UI',
+    font_size: 12,
+    color: '002060'
+  }
+); 
+
+const p27 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240, after: 0, before: 0 }
+});
+p27.addText(
+  'El ozono (O₃) presentó concentraciones entre  X,XX  ppb el  fecha  y  X,XX  ppb el  fecha , con un promedio de  X,XX  ppb.',
+  {
+    font_face: 'Microsoft YaHei UI',
+    font_size: 12,
+    color: '002060'
+  }
+);
+
+const p28 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240, after: 200, before: 0 }
+});
+p28.addText(
+  'Por su parte, el monóxido de carbono (CO) registró valores entre  X,XX  ppb el  fecha  y  X,XX  ppb el  fecha , con una media de  X,XX  ppb.',
+  {
+    font_face: 'Microsoft YaHei UI',
+    font_size: 12,
+    color: '002060'
+  }
+);
+
+const p29 = docx.createP({
+  align: 'justify',
+  spacing: { line: 240 }
+});
+p29.addText(
+  '	Respecto a las variables meteorológicas, la temperatura osciló entre X,XX °C el fecha y X,XX °C el fecha, con un valor promedio de X,XX °C. La humedad relativa se encontró entre X,XX % el  fecha y X,XX % (el fecha, con una media de X,XX %. La velocidad del viento varió entre X,XX m/s el  fecha y X,XX m/s el fecha, con promedio de X,XX m/s, mientras que la dirección del viento se registró entre X° el  fecha y X° el fecha, con dirección promedio de X°. La presión atmosférica se mantuvo entre X,XX mmHg el fecha y X,XX mmHg el fecha, con un valor medio de X,XX mmHg. Finalmente, la precipitación acumulada durante el periodo fue de X,XX mm, con registros diarios entre X,XX mm el fecha y X,XX mm el fecha. Estos resultados permiten caracterizar el comportamiento de los contaminantes y las condiciones atmosféricas en Mompox durante el intervalo evaluado.',
+  {
+    font_face: 'Microsoft YaHei UI',
+    font_size: 12,
+    color: '002060'
+  }
+);
+
 
 // 8) Generar archivo
 const out = fs.createWriteStream('proyecto.docx');
