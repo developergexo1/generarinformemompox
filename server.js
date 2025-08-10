@@ -1,220 +1,138 @@
+// server.js
 const express = require("express");
 const multer = require("multer");
 const ExcelJS = require("exceljs");
+const fs = require("fs");
+const fsp = fs.promises;
 const path = require("path");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
 const PORT = process.env.PORT || 3001;
 
-// Mapea nombres de hoja si quieres "amigables"
-const SHEET_LABEL_MAP = {
-  "Oxígeno Disuelto": "Oxigeno Disuelto",
-  Temperatura: "Temperatura",
-  "Turbidez (NTU)": "Turbidez (NTU)",
-  "Conductividad (µScm) ": "Conductividad (µScm)",
-  "Profundidad (m)": "Profundidad (m)",
-  pH: "pH",
-};
+/* -------------------- Helpers -------------------- */
+const sanitizeSheet = (s) => String(s ?? "").normalize("NFKC").trim();
 
-function formatCell(cell) {
-  if (cell instanceof Date) return cell.toISOString();
-  if (typeof cell === "object" && cell !== null) {
-    if (cell.text) return cell.text;
-    if (cell.richText) return cell.richText.map((t) => t.text).join("");
-    if (cell.result) return cell.result;
+const normalizeName = (s) =>
+  String(s ?? "undefined").normalize("NFKC").replace(/\s+/g, " ").trim();
+
+function classifySite(nameRaw) {
+  const n = normalizeName(nameRaw).toLowerCase();
+  if (n.includes("arriba")) return "Aguas arriba";
+  if (n.includes("abajo")) return "Aguas abajo";
+  return "Otro";
+}
+
+function normalizeCell(v) {
+  if (v instanceof Date) return v.toISOString();
+  if (v && typeof v === "object") {
+    if (v.text) return v.text;
+    if (v.result) return v.result;
+    if (Array.isArray(v.richText)) return v.richText.map((t) => t.text).join("");
   }
-  return String(cell);
-}
-
-// calcula stats de una serie de tiempos y valores
-function computeStats(times, values) {
-  const paired = times
-    .map((t, i) => ({ time: t, value: values[i] }))
-    .filter((p) => typeof p.value === "number" && !isNaN(p.value));
-  if (!paired.length) return null;
-
-  const vals = paired.map((p) => p.value);
-  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-  const max = Math.max(...vals);
-  const min = Math.min(...vals);
-  const dateMax = paired.find((p) => p.value === max)?.time || null;
-  const dateMin = paired.find((p) => p.value === min)?.time || null;
-
-  return {
-    mean,
-    max,
-    min,
-    date_max: dateMax,
-    date_min: dateMin,
-  };
-}
-
-async function extractWorkbook(filePath) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(filePath);
-  const result = [];
-
-  for (const worksheet of workbook.worksheets) {
-    const originalName = worksheet.name;
-    const friendlyName = SHEET_LABEL_MAP[originalName] || originalName;
-
-    const headerRow = worksheet.getRow(1);
-    const headers = {};
-    headerRow.eachCell((cell, colNumber) => {
-      const txt = String(cell.value || "").trim();
-      headers[colNumber] = txt;
-    });
-
-    // detectar columnas clave
-    const createdAtCols = Object.entries(headers)
-      .filter(([, name]) => /Created At -5/i.test(name))
-      .map(([col]) => parseInt(col));
-    const nameCols = Object.entries(headers)
-      .filter(([, name]) => /^Name$/i.test(name))
-      .map(([col]) => parseInt(col));
-    const sumaCols = Object.entries(headers)
-      .filter(([, name]) => /^SUMA\(.+\)/i.test(name))
-      .map(([col]) => parseInt(col));
-
-    if (createdAtCols.length === 0 || sumaCols.length === 0) {
-      // no tiene la forma esperada; igual puede saltarse o incluir vacío
-      continue;
+  if (typeof v === "string") {
+    const s = v.trim();
+    // "5,33" -> 5.33 (coma decimal sin miles)
+    if (/^-?\d+,\d+$/.test(s)) {
+      const n = Number(s.replace(",", "."));
+      if (!Number.isNaN(n)) return n;
     }
-
-    const group = {};
-
-    worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; // header
-      const createdAtRaw = row.getCell(createdAtCols[0]).value;
-      const createdAt = formatCell(createdAtRaw);
-      const name = nameCols.length
-        ? formatCell(row.getCell(nameCols[0]).value)
-        : "undefined";
-
-      const entry = {
-        "Created At -5 (copia)": createdAt,
-      };
-
-      sumaCols.forEach((col) => {
-        const h = headers[col];
-        entry[h] = formatCell(row.getCell(col).value);
-      });
-
-      if (!group[name]) group[name] = [];
-      group[name].push(entry);
-    });
-
-    result.push({
-      [friendlyName]: group,
-    });
+    const maybe = Number(s);
+    if (!Number.isNaN(maybe) && s !== "") return maybe;
+    return s;
   }
-
-  return result;
+  return v ?? "";
 }
 
-async function extractWithStats(filePath) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(filePath);
-  const structured = [];
+function readSheetAsRows(worksheet) {
+  // lee encabezados (fila 1)
+  const headerRow = worksheet.getRow(1);
+  const headers = [];
+  headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+    headers[colNumber] = String(cell.value ?? "").trim();
+  });
 
-  for (const worksheet of workbook.worksheets) {
-    const originalName = worksheet.name;
-    const friendlyName = SHEET_LABEL_MAP[originalName] || originalName;
-
-    const headerRow = worksheet.getRow(1);
-    const headers = {};
-    headerRow.eachCell((cell, colNumber) => {
-      headers[colNumber] = String(cell.value || "").trim();
+  const rows = [];
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const obj = {};
+    Object.keys(headers).forEach((k) => {
+      const col = Number(k);
+      if (!headers[col]) return;
+      obj[headers[col]] = normalizeCell(row.getCell(col).value);
     });
 
-    const createdAtCols = Object.entries(headers)
-      .filter(([, name]) => /Created At -5/i.test(name))
-      .map(([col]) => parseInt(col));
-    const nameCols = Object.entries(headers)
-      .filter(([, name]) => /^Name$/i.test(name))
-      .map(([col]) => parseInt(col));
-    const sumaCols = Object.entries(headers)
-      .filter(([, name]) => /^SUMA\(.+\)/i.test(name))
-      .map(([col]) => parseInt(col));
-
-    if (createdAtCols.length === 0 || sumaCols.length === 0) continue;
-
-    const group = {};
-
-    // primero agrupar por Name y dentro guardar series para stats
-    const temp = {}; // temp[name][sumaHeader] = { times:[], values:[] }
-    worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
-      const createdAtRaw = row.getCell(createdAtCols[0]).value;
-      const createdAt = createdAtRaw instanceof Date ? createdAtRaw : new Date(createdAtRaw);
-      const name = nameCols.length
-        ? formatCell(row.getCell(nameCols[0]).value)
-        : "undefined";
-
-      if (!temp[name]) temp[name] = {};
-      sumaCols.forEach((col) => {
-        const headerName = headers[col];
-        const valRaw = row.getCell(col).value;
-        const valNum = Number(String(valRaw).replace(",", ".")); // comas decimales
-        if (isNaN(valNum)) return;
-        if (!temp[name][headerName]) temp[name][headerName] = { times: [], values: [] };
-        temp[name][headerName].times.push(createdAt);
-        temp[name][headerName].values.push(valNum);
-      });
-    });
-
-    // construir salida con stats por cada suma header
-    for (const [name, sums] of Object.entries(temp)) {
-      group[name] = {};
-      for (const [sumaHeader, series] of Object.entries(sums)) {
-        const stats = computeStats(series.times, series.values);
-        group[name][sumaHeader] = {
-          raw: series.times.map((t, i) => ({
-            "Created At -5 (copia)": series.times[i].toISOString(),
-            [sumaHeader]: series.values[i],
-          })),
-          stats,
-        };
-      }
-    }
-
-    structured.push({ [friendlyName]: group });
-  }
-
-  return structured;
+    const hasAny = Object.values(obj).some(
+      (v) => v !== "" && v !== null && v !== undefined
+    );
+    if (hasAny) rows.push(obj);
+  });
+  return rows;
 }
 
-// endpoint básico: devuelve estructura sin stats
-app.post("/api/extract", upload.single("file"), async (req, res) => {
+function groupRowsBySite(rows) {
+  const groups = { "Aguas arriba": [], "Aguas abajo": [], Otro: [] };
+  for (const r of rows) {
+    const site = classifySite(r.Name);
+    // agrega metadatos útiles normalizados (no molestan en tu consumo)
+    const withMeta = {
+      ...r,
+      _NameClean: normalizeName(r.Name),
+      _Site: site,
+    };
+    groups[site].push(withMeta);
+  }
+  return groups;
+}
+
+/* -------------------- Endpoint -------------------- */
+app.post("/api/xlsx-by-site", upload.single("file"), async (req, res) => {
+  let tmp = null;
   try {
-    if (!req.file) return res.status(400).json({ error: "Falta archivo" });
-    const data = await extractWorkbook(req.file.path);
-    console.log("Extract result:", JSON.stringify(data, null, 2));
-    res.json({ extracted: data });
+    if (!req.file) return res.status(400).json({ error: "Falta archivo 'file'" });
+    tmp = req.file.path;
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(tmp); // ExcelJS lee el .xlsx :contentReference[oaicite:0]{index=0}
+
+    // Estructura final: { "Temperatura": { "Aguas arriba":[...], "Aguas abajo":[...] }, ... }
+    const data = {};
+    wb.worksheets.forEach((ws) => {
+      const sheetName = sanitizeSheet(ws.name);
+      const rows = readSheetAsRows(ws);
+      const grouped = groupRowsBySite(rows);
+
+      // Debug útil
+      const uniqNames = Array.from(
+        new Set(rows.filter(r => r.Name != null).map(r => normalizeName(r.Name)))
+      );
+      console.log(`Hoja "${sheetName}" → Names únicos:`, uniqNames);
+      console.log(
+        `Hoja "${sheetName}" → Conteo por sitio:`,
+        Object.fromEntries(Object.entries(grouped).map(([k,v]) => [k, v.length]))
+      );
+
+      data[sheetName] = grouped;
+    });
+
+    // Guarda archivo con la respuesta completa
+    const logsDir = path.join(__dirname, "logs");
+    await fsp.mkdir(logsDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const outFile = path.join(logsDir, `by-site_${stamp}.json`);
+    await fsp.writeFile(outFile, JSON.stringify({ ok: true, data }, null, 2), "utf8");
+    console.log(`Respuesta guardada en: ${outFile}`);
+
+    // Responde al cliente
+    res.json({ ok: true, data, savedTo: outFile });
   } catch (err) {
-    console.error("Error extract:", err);
-    res.status(500).json({ error: err.message });
+    console.error("xlsx-by-site error:", err);
+    res.status(500).json({ ok: false, error: err.message });
+  } finally {
+    if (tmp) { try { await fsp.unlink(tmp); } catch {} }
   }
 });
 
-// endpoint con stats
-app.post("/api/extract-with-stats", upload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: "Falta archivo" });
-    const data = await extractWithStats(req.file.path);
-    console.log("Extract with stats:", JSON.stringify(data, null, 2));
-    res.json({ extracted: data });
-  } catch (err) {
-    console.error("Error extract-with-stats:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+app.get("/", (_req, res) => res.send("API XLSX agrupado por sitio activa"));
 
-app.get("/", (_req, res) => {
-  res.send("API de extracción activa");
-});
-
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server on :${PORT}`));
