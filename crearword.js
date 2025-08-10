@@ -1,53 +1,30 @@
 // proyecto.js
 const officegen = require('officegen');
 const fs = require('fs');
+const path = require('path');
 
 // 1) Crear documento Word
-const docx = officegen('docx');
+const docx = officegen({type: 'docx'});
+
+// (opcional) márgenes normales; si quieres sangrado total pon todos en 0
+docx.on('error', console.error);
+
+const imgPath = path.resolve(__dirname, 'portada.jpg');
+if (!fs.existsSync(imgPath)) throw new Error('No existe portada.jpg');
+
+// Hoja Carta => ancho útil = 8.5" * 96 dpi = 816 px
+// Alto proporcional para no deformar (ajústalo si quieres)
+const WIDTH_PX  = 560;   // llena todo el ancho
+const HEIGHT_PX = 650;   // ejemplo; ajusta a tu imagen
+
+const pImg = docx.createP({ align: 'center', spacing: { before: 0, after: 0 } });
+pImg.addImage(imgPath, { cx: WIDTH_PX, cy: HEIGHT_PX }); // <-- NÚMEROS, no strings
 
 // 2) Párrafo justificado con interlineado 1.0 y estilo definido
 const p1 = docx.createP({
   align: 'justify',
   spacing: { line: 240 }
 });
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
-p1.addLineBreak(); // Salto de línea
 p1.addLineBreak(); // Salto de línea
 p1.addLineBreak(); // Salto de línea
 p1.addText('Proyecto: ', {
