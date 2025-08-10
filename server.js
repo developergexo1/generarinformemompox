@@ -5,6 +5,8 @@ const ExcelJS = require("exceljs");
 const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
+const PizZip = require("pizzip");
+const Docxtemplater = require("docxtemplater");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
@@ -32,7 +34,6 @@ function normalizeCell(v) {
   }
   if (typeof v === "string") {
     const s = v.trim();
-    // "5,33" -> 5.33 (coma decimal sin miles)
     if (/^-?\d+,\d+$/.test(s)) {
       const n = Number(s.replace(",", "."));
       if (!Number.isNaN(n)) return n;
@@ -45,7 +46,6 @@ function normalizeCell(v) {
 }
 
 function readSheetAsRows(worksheet) {
-  // lee encabezados (fila 1)
   const headerRow = worksheet.getRow(1);
   const headers = [];
   headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
@@ -83,14 +83,14 @@ function groupRowsBySite(rows) {
   return groups;
 }
 
-/* ---- Parse de fecha robusto (ISO ó dd/mm/yyyy [hh:mm[:ss]]) ---- */
+/* ---- Parse fecha robusto (ISO o dd/mm/yyyy [hh:mm[:ss]]) ---- */
 function parseDateLoose(v) {
   if (v instanceof Date) return v;
   if (typeof v !== "string") {
     if (v && typeof v === "object" && v.text) return new Date(v.text);
     return null;
   }
-  const s = v.trim().replace(/\u00A0/g, " "); // NBSP -> espacio
+  const s = v.trim().replace(/\u00A0/g, " ");
   if (/\d{4}-\d{2}-\d{2}T/.test(s)) {
     const t = Date.parse(s);
     return Number.isNaN(t) ? null : new Date(t);
@@ -105,25 +105,23 @@ function parseDateLoose(v) {
     const hh = parseInt(m[4] || "0", 10);
     const mm = parseInt(m[5] || "0", 10);
     const ss = parseInt(m[6] || "0", 10);
-    if (mo > 12 && d <= 12) [d, mo] = [mo, d]; // por si viene mm/dd
+    if (mo > 12 && d <= 12) [d, mo] = [mo, d];
     return new Date(Date.UTC(y, mo - 1, d, hh, mm, ss));
   }
   const t = Date.parse(s);
   return Number.isNaN(t) ? null : new Date(t);
 }
 
-/* ---- util: detectar columnas de valor (métricas) ---- */
+/* ---- detectar columnas de valor (métricas) ---- */
 const VALUE_COL_PATTERNS = [
-  /^SUMA?\s*\(.+\)$/i,     // SUM(...), SUMA(...)
-  /^RECDIST\(.+\)$/i,      // RECDIST(Depth)
+  /^SUMA?\s*\(.+\)$/i,
+  /^RECDIST\(.+\)$/i,
   /^AVG\(.+\)$/i,
   /^AVERAGE\(.+\)$/i,
 ];
-
 function isValueKey(key) {
   return VALUE_COL_PATTERNS.some((rx) => rx.test(key));
 }
-
 function toNumber(val) {
   if (typeof val === "number") return val;
   if (typeof val === "string") {
@@ -195,7 +193,102 @@ function computePeriodRange(data) {
   };
 }
 
-/* -------------------- Endpoint -------------------- */
+// formateo humano para el DOCX (zona Bogotá)
+function formatBogota(iso) {
+  if (!iso) return "";
+  try {
+    const fmt = new Intl.DateTimeFormat("es-CO", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "America/Bogota",
+    });
+    return fmt.format(new Date(iso));
+  } catch {
+    return String(iso);
+  }
+}
+
+/* -------------------- DOCX: solo {periodRange} -------------------- */
+app.post("/api/docx/period", upload.single("file"), async (req, res) => {
+  let tmp = null;
+  try {
+    if (!req.file) return res.status(400).json({ error: "Falta archivo 'file'" });
+    tmp = req.file.path;
+
+    // 1) Leer Excel y construir "data"
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(tmp);
+    const data = {};
+    wb.worksheets.forEach((ws) => {
+      const sheetName = sanitizeSheet(ws.name);
+      const rows = readSheetAsRows(ws);
+      const grouped = groupRowsBySite(rows);
+      data[sheetName] = grouped;
+    });
+
+    // 2) Calcular periodRange
+    const periodRange = computePeriodRange(data);
+    const startLabel = formatBogota(periodRange.isoStart);
+    const endLabel   = formatBogota(periodRange.isoEnd);
+    const periodRangeLabel = `${startLabel} — ${endLabel} (GMT-5)`;
+    console.log("periodRange:", { startLabel, endLabel, periodRangeLabel });
+
+    // 3) Cargar y validar template
+    const templatePath = path.join(__dirname, "template.docx");
+    if (!fs.existsSync(templatePath)) {
+      return res.status(500).json({ error: "No se encontró template.docx" });
+    }
+    const content = fs.readFileSync(templatePath); // Buffer
+    let zip;
+    try {
+      zip = new PizZip(content);
+      if (!zip.files || !zip.files["[Content_Types].xml"]) {
+        throw new Error("El archivo no parece un DOCX válido");
+      }
+    } catch (e) {
+      console.error("PizZip error:", e);
+      return res.status(500).json({ error: "template.docx inválido o corrupto" });
+    }
+
+    // 4) Render con Docxtemplater
+    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+    try {
+      doc.render({
+        periodRange: periodRangeLabel,     // por compatibilidad
+        rangoFechaInicio: startLabel,      // NUEVO
+        rangoFechaFin: endLabel            // NUEVO
+      });
+    } catch (e) {
+      const info = {
+        message: e.message,
+        explanation: e.properties && e.properties.explanation,
+        id: e.properties && e.properties.id,
+        errors: e.properties && e.properties.errors,
+      };
+      console.error("Docxtemplater render error:", info);
+      return res.status(400).json({ error: "Error al renderizar DOCX", detail: info });
+    }
+
+    // 5) Generar, guardar y descargar
+    const buf = doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
+
+    const outDir = path.join(__dirname, "out");
+    await fsp.mkdir(outDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const outFile = path.join(outDir, `informe_periodo_${stamp}.docx`);
+    fs.writeFileSync(outFile, buf);
+
+    return res.download(outFile, "informe_periodo.docx");
+  } catch (err) {
+    console.error("docx/period error:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (tmp) { try { await fsp.unlink(tmp); } catch {} }
+  }
+});
+
+
+/* -------------------- Endpoint de datos + stats -------------------- */
 app.post("/api/xlsx-by-site", upload.single("file"), async (req, res) => {
   let tmp = null;
   try {
@@ -203,23 +296,20 @@ app.post("/api/xlsx-by-site", upload.single("file"), async (req, res) => {
     tmp = req.file.path;
 
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.readFile(tmp); // ExcelJS lee el XLSX (workbook/worksheets/cells) :contentReference[oaicite:0]{index=0}
+    await wb.xlsx.readFile(tmp);
 
-    // data: { "Temperatura": { "Aguas arriba":[...], "Aguas abajo":[...], "Otro":[...] }, ... }
     const data = {};
-    const stats = {}; // NUEVO: stats[sheet][site][metric] = { min, max, fechaMin, fechaMax }
+    const stats = {};
 
     wb.worksheets.forEach((ws) => {
       const sheetName = sanitizeSheet(ws.name);
       const rows = readSheetAsRows(ws);
       const grouped = groupRowsBySite(rows);
 
-      // Detectar métricas (keys tipo SUM(...)/SUMA(...)/RECDIST(...))
       const allKeys = new Set();
       rows.forEach(r => Object.keys(r).forEach(k => allKeys.add(k)));
       const metricKeys = [...allKeys].filter(isValueKey);
 
-      // Calcular stats por sitio y por métrica
       const sheetStats = {};
       Object.entries(grouped).forEach(([site, arr]) => {
         const siteStats = {};
@@ -233,7 +323,6 @@ app.post("/api/xlsx-by-site", upload.single("file"), async (req, res) => {
       data[sheetName] = grouped;
       stats[sheetName] = sheetStats;
 
-      // Debug
       const uniqNames = Array.from(
         new Set(rows.filter(r => r.Name != null).map(r => normalizeName(r.Name)))
       );
@@ -247,7 +336,6 @@ app.post("/api/xlsx-by-site", upload.single("file"), async (req, res) => {
     const periodRange = computePeriodRange(data);
     console.log("periodRange:", periodRange);
 
-    // Guardar archivo con la respuesta completa
     const payload = { ok: true, data, periodRange, stats };
     const logsDir = path.join(__dirname, "logs");
     await fsp.mkdir(logsDir, { recursive: true });
@@ -256,7 +344,6 @@ app.post("/api/xlsx-by-site", upload.single("file"), async (req, res) => {
     await fsp.writeFile(outFile, JSON.stringify(payload, null, 2), "utf8");
     console.log(`Respuesta guardada en: ${outFile}`);
 
-    // Responder al cliente
     res.json({ ...payload, savedTo: outFile });
   } catch (err) {
     console.error("xlsx-by-site error:", err);
