@@ -3440,5 +3440,125 @@
       ],
       "Otro": []
     }
+  },
+  "periodRange": {
+    "isoStart": "2025-08-08T00:29:11.000Z",
+    "isoEnd": "2025-08-08T23:53:03.000Z"
+  },
+  "stats": {
+    "Oxígeno Disuelto": {
+      "Aguas arriba": {
+        "SUM(Dissolved Oxygen)": {
+          "min": 5.13,
+          "max": 5.61,
+          "fechaMin": "2025-08-08T21:20:19.000Z",
+          "fechaMax": "2025-08-08T04:32:04.000Z"
+        }
+      },
+      "Aguas abajo": {
+        "SUM(Dissolved Oxygen)": {
+          "min": 5.11,
+          "max": 5.42,
+          "fechaMin": "2025-08-08T22:30:17.000Z",
+          "fechaMax": "2025-08-08T07:29:01.000Z"
+        }
+      },
+      "Otro": {}
+    },
+    "Temperatura": {
+      "Aguas arriba": {
+        "SUM(Temperature)": {
+          "min": 30.73,
+          "max": 31.53,
+          "fechaMin": "2025-08-08T04:32:04.000Z",
+          "fechaMax": "2025-08-08T14:12:31.000Z"
+        }
+      },
+      "Aguas abajo": {
+        "SUM(Temperature)": {
+          "min": 30.69,
+          "max": 31.72,
+          "fechaMin": "2025-08-08T07:29:01.000Z",
+          "fechaMax": "2025-08-08T15:28:41.000Z"
+        }
+      },
+      "Otro": {}
+    },
+    "Turbidez (NTU)": {
+      "Aguas arriba": {
+        "SUM(Turbidity)": {
+          "min": 239.3,
+          "max": 557.7,
+          "fechaMin": "2025-08-08T16:45:15.000Z",
+          "fechaMax": "2025-08-08T01:59:21.000Z"
+        }
+      },
+      "Aguas abajo": {
+        "SUM(Turbidity)": {
+          "min": 531.1,
+          "max": 905.4,
+          "fechaMin": "2025-08-08T23:00:56.000Z",
+          "fechaMax": "2025-08-08T06:27:56.000Z"
+        }
+      },
+      "Otro": {}
+    },
+    "Conductividad (μScm)": {
+      "Aguas arriba": {
+        "SUM(Conductivity)": {
+          "min": 357.7,
+          "max": 367.7,
+          "fechaMin": "2025-08-08T04:32:04.000Z",
+          "fechaMax": "2025-08-08T13:11:25.000Z"
+        }
+      },
+      "Aguas abajo": {
+        "SUM(Conductivity)": {
+          "min": 263.7,
+          "max": 270.4,
+          "fechaMin": "2025-08-08T07:29:01.000Z",
+          "fechaMax": "2025-08-08T16:29:46.000Z"
+        }
+      },
+      "Otro": {}
+    },
+    "Profundidad (m)": {
+      "Aguas arriba": {
+        "SUM(Conductivity)": {
+          "min": 357.7,
+          "max": 367.7,
+          "fechaMin": "2025-08-08T04:32:04.000Z",
+          "fechaMax": "2025-08-08T13:11:25.000Z"
+        }
+      },
+      "Aguas abajo": {
+        "SUM(Conductivity)": {
+          "min": 263.7,
+          "max": 270.4,
+          "fechaMin": "2025-08-08T07:29:01.000Z",
+          "fechaMax": "2025-08-08T16:29:46.000Z"
+        }
+      },
+      "Otro": {}
+    },
+    "pH": {
+      "Aguas arriba": {
+        "SUM(Ph)": {
+          "min": 6.97,
+          "max": 7.06,
+          "fechaMin": "2025-08-08T14:43:03.000Z",
+          "fechaMax": "2025-08-08T04:01:31.000Z"
+        }
+      },
+      "Aguas abajo": {
+        "SUM(Ph)": {
+          "min": 5.87,
+          "max": 9.1,
+          "fechaMin": "2025-08-08T23:31:28.000Z",
+          "fechaMax": "2025-08-08T03:27:40.000Z"
+        }
+      },
+      "Otro": {}
+    }
   }
 }
