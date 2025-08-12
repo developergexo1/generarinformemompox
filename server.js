@@ -7,10 +7,171 @@ const fsp = fs.promises;
 const path = require("path");
 const PizZip = require("pizzip");
 const Docxtemplater = require("docxtemplater");
+const { ChartJSNodeCanvas } = require("chartjs-node-canvas");
+const ChartJSLib = require("chart.js");
+const ImageModule = require("docxtemplater-image-module-free");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
 const PORT = process.env.PORT || 3001;
+
+// === GRÁFICAS (único bloque, eje X = tiempo real) ===
+const OUT_IMG_DIR = path.join(__dirname, "out", "imgs");
+const IMG_TAGS = new Set([
+  "img_ph",
+  "img_oxigeno",
+  "img_conductividad",
+  "img_temperatura",
+  "img_profundidad",
+  "img_turbidez",
+]);
+
+function ensureDirSync(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+// Busca hoja y métrica según WATER_MAP
+function findSheetAndMetric(data, sheetRegex, metricRegex) {
+  let sheetName = null;
+  for (const n of Object.keys(data)) {
+    if (sheetRegex.test(normKey(n))) { sheetName = n; break; }
+  }
+  if (!sheetName) return null;
+
+  const rowsArriba = data[sheetName]?.["Aguas arriba"] || [];
+  const rowsAbajo  = data[sheetName]?.["Aguas abajo"]  || [];
+  const sample = rowsArriba[0] || rowsAbajo[0] || null;
+  if (!sample) return null;
+
+  let metricKey = null;
+  for (const k of Object.keys(sample)) {
+    if (metricRegex.test(normKey(k))) { metricKey = k; break; }
+  }
+  if (!metricKey) {
+    for (const k of Object.keys(sample)) { if (isValueKey(k)) { metricKey = k; break; } }
+  }
+  if (!metricKey) return null;
+
+  return { sheetName, metricKey };
+}
+
+// Convierte filas -> puntos XY [{x:tsMs, y:num}] ordenados
+function rowsToPoints(rows, metricKey) {
+  const pts = [];
+  for (const r of rows) {
+    const v = toNumber(r[metricKey]);
+    if (v == null) continue;
+    const dtRaw = r["Created At -5 (copia)"] ?? r["Created At"];
+    const dt = parseDateLoose(dtRaw);
+    if (!dt) continue;
+    pts.push({ x: dt.getTime(), y: Number(v) });
+  }
+  pts.sort((a, b) => a.x - b.x);
+  return pts;
+}
+
+// Formato tick X (ms -> 'YYYY-MM-DD HH:mm')
+function fmtTickTs(ms) {
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, "0");
+  const Y = d.getFullYear();
+  const M = pad(d.getMonth() + 1);
+  const D = pad(d.getDate());
+  const h = pad(d.getHours());
+  const m = pad(d.getMinutes());
+  return `${Y}-${M}-${D} ${h}:${m}`;
+}
+
+// Render XY (sin labels categóricos)
+async function renderChartPNG_XY({ title, pointsUp, pointsDown, filename }) {
+  ensureDirSync(OUT_IMG_DIR);
+  const width = 800, height = 450;
+
+  const chartJSNodeCanvas = new ChartJSNodeCanvas({
+    width, height,
+    chartCallback: (Chart) => { Chart.register(...ChartJSLib.registerables); },
+  });
+
+  const minX = Math.min(
+    pointsUp.length ? pointsUp[0].x : Infinity,
+    pointsDown.length ? pointsDown[0].x : Infinity
+  );
+  const maxX = Math.max(
+    pointsUp.length ? pointsUp[pointsUp.length - 1].x : -Infinity,
+    pointsDown.length ? pointsDown[pointsDown.length - 1].x : -Infinity
+  );
+
+  const config = {
+    type: "line",
+    data: {
+      datasets: [
+        { label: "Aguas arriba", data: pointsUp,   parsing: false, spanGaps: true, borderWidth: 2, pointRadius: 0 },
+        { label: "Aguas abajo",  data: pointsDown, parsing: false, spanGaps: true, borderWidth: 2, pointRadius: 0 },
+      ],
+    },
+    options: {
+      responsive: false,
+      animation: false,
+      plugins: { title: { display: true, text: title }, legend: { display: true } },
+      scales: {
+        x: {
+          type: "linear",
+          min: Number.isFinite(minX) ? minX : undefined,
+          max: Number.isFinite(maxX) ? maxX : undefined,
+          ticks: { callback: (value) => fmtTickTs(value), maxRotation: 0, autoSkip: true },
+          grid: { display: true },
+        },
+        y: { beginAtZero: false, grid: { display: true } },
+      },
+    },
+  };
+
+  const buffer = await chartJSNodeCanvas.renderToBuffer(config);
+  const outPath = path.join(OUT_IMG_DIR, filename);
+  fs.writeFileSync(outPath, buffer);
+  return outPath;
+}
+
+// Genera TODAS las gráficas y devuelve { img_ph, img_oxigeno, ... }
+async function generateWaterCharts(data) {
+  const TITLES = {
+    conductividad: "Conductividad (µS/cm)",
+    profundidad:   "Profundidad (m)",
+    turbidez:      "Turbidez (NTU)",
+    temperatura:   "Temperatura (°C)",
+    ph:            "pH (Unidades de pH)",
+    oxigenodisuelto: "Oxígeno Disuelto (mg/L)",
+  };
+
+  const images = {};
+  for (const item of WATER_MAP) {
+    const fm = findSheetAndMetric(data, item.sheet, item.metric);
+    if (!fm) continue;
+    const { sheetName, metricKey } = fm;
+
+    const upRows   = data[sheetName]?.["Aguas arriba"] || [];
+    const downRows = data[sheetName]?.["Aguas abajo"]  || [];
+
+    const ptsUp   = rowsToPoints(upRows, metricKey);
+    const ptsDown = rowsToPoints(downRows, metricKey);
+
+    const outPath = await renderChartPNG_XY({
+      title: TITLES[item.key] || item.key,
+      pointsUp: ptsUp,
+      pointsDown: ptsDown,
+      filename: `chart_${item.key}.png`,
+    });
+
+    if (item.key === "ph")                   images["img_ph"] = outPath;
+    else if (item.key === "oxigenodisuelto") images["img_oxigeno"] = outPath;
+    else if (item.key === "conductividad")   images["img_conductividad"] = outPath;
+    else if (item.key === "temperatura")     images["img_temperatura"]   = outPath;
+    else if (item.key === "profundidad")     images["img_profundidad"]   = outPath;
+    else if (item.key === "turbidez")        images["img_turbidez"]      = outPath;
+  }
+  return images;
+}
+
 
 // ==== Helpers específicos para la tabla de agua (Aguas arriba) ====
 function removeDiacritics(s) {
@@ -511,23 +672,21 @@ app.post("/api/docx/tabla-aguas-arriba", upload.single("file"), async (req, res)
     const periodRange = computePeriodRange(data);
     const ctxTabla = buildWaterContextAguasArriba(data);
     const context = {
-      periodRange: `${formatBogota(periodRange.isoStart)} — ${formatBogota(periodRange.isoEnd)} 
-      ${
-        ""
-        // "(GMT-5)"
-      }
-      `,
+      periodRange: `${formatBogota(periodRange.isoStart)} — ${formatBogota(periodRange.isoEnd)}`,
       rangoFechaInicio: formatBogota(periodRange.isoStart),
       rangoFechaFin:    formatBogota(periodRange.isoEnd),
-      ...ctxTabla,
+      ...ctxTabla, // <<< mantiene TUS placeholders de estadísticas (Aguas arriba)
     };
 
-    // 3) Cargar/validar template y renderizar
+    // === NUEVO: generar imágenes de las 6 variables (Arriba vs Abajo) ===
+    const imgs = await generateWaterCharts(data);
+
+    // === Cargar y validar template ===
     const templatePath = path.join(__dirname, "template.docx");
     if (!fs.existsSync(templatePath)) {
       return res.status(500).json({ error: "No se encontró template.docx" });
     }
-    const content = fs.readFileSync(templatePath); // Buffer
+    const content = fs.readFileSync(templatePath);
     let zip;
     try {
       zip = new PizZip(content);
@@ -539,9 +698,30 @@ app.post("/api/docx/tabla-aguas-arriba", upload.single("file"), async (req, res)
       return res.status(500).json({ error: "template.docx inválido o corrupto" });
     }
 
-    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+    // === ImageModule: marcar explícitamente qué tags son imagen ===
+    const imModule = new ImageModule({
+      fileType: "docx",
+      centered: true,
+      getTagType: (tag) => (IMG_TAGS.has(tag) ? "image" : "text"),
+      getImage: (tagValue/*, tagName*/) => {
+        try {
+          if (!tagValue) return Buffer.alloc(0);
+          if (fs.existsSync(tagValue)) return fs.readFileSync(tagValue);
+          return Buffer.alloc(0);
+        } catch { return Buffer.alloc(0); }
+      },
+      getSize: () => [600, 338], // ~15 cm ancho en Word
+    });
+
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      modules: [imModule],
+    });
+
+    // === Render final: FECHAS + STATS + IMÁGENES ===
     try {
-      doc.render(context);
+      doc.render({ ...context, ...imgs });
     } catch (e) {
       const info = {
         message: e.message,
@@ -553,7 +733,7 @@ app.post("/api/docx/tabla-aguas-arriba", upload.single("file"), async (req, res)
       return res.status(400).json({ error: "Error al renderizar DOCX", detail: info });
     }
 
-    // 4) Guardar y descargar
+    // === Guardar y devolver ===
     const buf = doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
     const outDir = path.join(__dirname, "out");
     await fsp.mkdir(outDir, { recursive: true });
@@ -568,6 +748,104 @@ app.post("/api/docx/tabla-aguas-arriba", upload.single("file"), async (req, res)
     if (tmp) { try { await fsp.unlink(tmp); } catch {} }
   }
 });
+
+/* ========= ENDPOINT: DOCX con GRÁFICAS (Arriba vs Abajo) ========= */
+app.post("/api/docx/graficas", upload.single("file"), async (req, res) => {
+  let tmp = null;
+  try {
+    if (!req.file) return res.status(400).json({ error: "Falta archivo 'file' (.xlsx)" });
+    tmp = req.file.path;
+
+    // 1) Excel → data (reutiliza tus helpers)
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(tmp);
+    const data = {};
+    wb.worksheets.forEach((ws) => {
+      const sheetName = sanitizeSheet(ws.name);
+      const rows = readSheetAsRows(ws);
+      const grouped = groupRowsBySite(rows);
+      data[sheetName] = grouped;
+    });
+
+    // 2) Calcular rango de fechas para el contexto
+    const periodRange = computePeriodRange(data);
+    const ctxBase = {
+      periodRange: `${formatBogota(periodRange.isoStart)} — ${formatBogota(periodRange.isoEnd)}`,
+      rangoFechaInicio: formatBogota(periodRange.isoStart),
+      rangoFechaFin:    formatBogota(periodRange.isoEnd),
+    };
+
+    // 3) Generar PNGs de todas las variables
+    const imgs = await generateWaterCharts(data);
+
+    // 4) Cargar template.docx y configurar módulo de imágenes
+    const templatePath = path.join(__dirname, "template.docx");
+    if (!fs.existsSync(templatePath)) {
+      return res.status(500).json({ error: "No se encontró template.docx" });
+    }
+    const content = fs.readFileSync(templatePath);
+    let zip;
+    try {
+      zip = new PizZip(content);
+      if (!zip.files || !zip.files["[Content_Types].xml"]) {
+        throw new Error("El archivo no parece un DOCX válido");
+      }
+    } catch (e) {
+      console.error("PizZip error:", e);
+      return res.status(500).json({ error: "template.docx inválido o corrupto" });
+    }
+
+    const imModule = new ImageModule({
+      centered: true,
+      getImage: (tagValue) => {
+        if (!tagValue || !fs.existsSync(tagValue)) return Buffer.alloc(0);
+        return fs.readFileSync(tagValue);
+      },
+      getSize: () => {
+        // ~15 cm de ancho en Word: 15cm ≈ 567 pt ≈ 1134 px a 96dpi
+        // Como generamos 1600x900, lo acercamos a 1200x675
+        return [1200, 675];
+      },
+    });
+
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      modules: [imModule],
+    });
+
+    // 5) Renderizar con contexto (fechas + rutas de imágenes)
+    const context = { ...ctxBase, ...imgs };
+    try {
+      doc.render(context);
+    } catch (e) {
+      const info = {
+        message: e.message,
+        explanation: e.properties && e.properties.explanation,
+        id: e.properties && e.properties.id,
+        errors: e.properties && e.properties.errors,
+      };
+      console.error("Docxtemplater render error:", info);
+      return res.status(400).json({ error: "Error al renderizar DOCX", detail: info });
+    }
+
+    // 6) Guardar y descargar
+    const buf = doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
+    const outDir = path.join(__dirname, "out");
+    await fsp.mkdir(outDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const outFile = path.join(outDir, `informe_graficas_${stamp}.docx`);
+    fs.writeFileSync(outFile, buf);
+
+    return res.download(outFile, "informe_graficas.docx");
+  } catch (err) {
+    console.error("docx/graficas error:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (tmp) { try { await fsp.unlink(tmp); } catch {} }
+  }
+});
+
 
 app.get("/", (_req, res) => res.send("API XLSX agrupado por sitio activa"));
 app.listen(PORT, () => console.log(`Server on :${PORT}`));
