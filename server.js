@@ -246,6 +246,82 @@ function statsAguasArriba(data, sheetRegex, metricRegex) {
   };
 }
 
+// === Stats para "Aguas abajo" (similar a statsAguasArriba) ===
+function statsAguasAbajo(data, sheetRegex, metricRegex) {
+  // 1) hoja
+  let sheetName = null;
+  for (const n of Object.keys(data)) {
+    if (sheetRegex.test(normKey(n))) { sheetName = n; break; }
+  }
+  if (!sheetName) return null;
+
+  // 2) filas del sitio
+  const rows = data[sheetName]?.["Aguas abajo"] || [];
+  if (!rows.length) return null;
+
+  // 3) columna de métrica
+  let metricKey = null;
+  const keys = Object.keys(rows[0] || {});
+  for (const k of keys) {
+    if (metricRegex.test(normKey(k))) { metricKey = k; break; }
+  }
+  if (!metricKey) {
+    for (const k of keys) { if (isValueKey(k)) { metricKey = k; break; } }
+  }
+  if (!metricKey) return null;
+
+  // 4) stats
+  let min = Infinity, max = -Infinity, sum = 0, cnt = 0;
+  let dtMin = null, dtMax = null;
+
+  for (const r of rows) {
+    const v = toNumber(r[metricKey]);
+    if (v == null) continue;
+    const dtRaw = r["Created At -5 (copia)"] ?? r["Created At"];
+    const dt = parseDateLoose(dtRaw);
+    if (!dt) continue;
+
+    if (v < min) { min = v; dtMin = dt; }
+    if (v > max) { max = v; dtMax = dt; }
+    sum += v; cnt += 1;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max) || cnt === 0) return null;
+
+  const media = sum / cnt;
+  return {
+    media, max, min,
+    fechaMax: dtMax ? dtMax.toISOString() : null,
+    fechaMin: dtMin ? dtMin.toISOString() : null,
+  };
+}
+
+// === Construye el contexto para los placeholders de "Aguas Abajo" ===
+// Llena exactamente los tags del template:
+//   {aguasabajoconductividadmedia/max/min/fechamax/fechamin}, etc.
+function buildWaterContextAguasAbajo(data) {
+  const ctx = {};
+  for (const item of WATER_MAP) {
+    const s = statsAguasAbajo(data, item.sheet, item.metric);
+
+    const put = (prefix, stat) => {
+      ctx[`aguasabajo${prefix}media`]    = stat ? fmtNum(stat.media) : "-";
+      ctx[`aguasabajo${prefix}max`]      = stat ? fmtNum(stat.max)   : "-";
+      ctx[`aguasabajo${prefix}min`]      = stat ? fmtNum(stat.min)   : "-";
+      ctx[`aguasabajo${prefix}fechamax`] = stat ? formatBogota(stat.fechaMax) : "-";
+      ctx[`aguasabajo${prefix}fechamin`] = stat ? formatBogota(stat.fechaMin) : "-";
+    };
+
+    put(item.key, s);
+
+    // Soporta alias (ej. oxigenodisuelt*)
+    if (item.aliases) {
+      for (const a of item.aliases) put(a, s);
+    }
+  }
+  return ctx;
+}
+
+
 // Mapeo hoja/métrica → placeholders del nuevo template
 const WATER_MAP = [
   // key = prefijo usado en placeholders del DOCX
@@ -670,12 +746,14 @@ app.post("/api/docx/tabla-aguas-arriba", upload.single("file"), async (req, res)
 
     // 2) periodRange + contexto tabla (Aguas arriba)
     const periodRange = computePeriodRange(data);
-    const ctxTabla = buildWaterContextAguasArriba(data);
+    const ctxArriba = buildWaterContextAguasArriba(data);
+    const ctxAbajo = buildWaterContextAguasAbajo(data);
     const context = {
       periodRange: `${formatBogota(periodRange.isoStart)} — ${formatBogota(periodRange.isoEnd)}`,
       rangoFechaInicio: formatBogota(periodRange.isoStart),
       rangoFechaFin:    formatBogota(periodRange.isoEnd),
-      ...ctxTabla, // <<< mantiene TUS placeholders de estadísticas (Aguas arriba)
+      ...ctxArriba, // <<< mantiene TUS placeholders de estadísticas (Aguas arriba)
+      ...ctxAbajo,  // <<< agrega los de Aguas abajo (si los necesitas)
     };
 
     // === NUEVO: generar imágenes de las 6 variables (Arriba vs Abajo) ===
