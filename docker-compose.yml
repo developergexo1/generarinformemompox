@@ -1,0 +1,9 @@
+services:
+  generar-informes-mompox:
+    container_name: "generar-informes-mompox"
+    build: ./
+    ports:
+      - "3001:3001"
+    restart: always
+    # env_file:
+    #   - .env
