@@ -13,7 +13,7 @@ const ImageModule = require("docxtemplater-image-module-free");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 1500;
 
 // === GRÁFICAS (único bloque, eje X = tiempo real) ===
 const OUT_IMG_DIR = path.join(__dirname, "out", "imgs");
